@@ -17,13 +17,13 @@ namespace StudentAPI.Controller
 
         //1. Get: api/student (lay toan bo danh sach sinh vien)
         [HttpGet]
-        public IActionResult Get()
+        public IActionResult<IEnumerable<Student>> Get()
         {
             return Ok(students);
         }
         //2. Get: api/student/1 (lay sinh vien theo id)
         [HttpGet("{id}")] // api/student/1
-        public IActionResult GetById(int id)
+        public IActionResult<Student> GetById(int id)
         {
             var student_ = students.FirstOrDefault(s => s.Id == id);
             if (student_ == null)
@@ -34,7 +34,7 @@ namespace StudentAPI.Controller
         }
         //3 . Post: api/student (them moi sinh vien)
         [HttpPost]
-        public IActionResult Create([FromBody] StudentDTO dto)
+        public IActionResult<Student> Create([FromBody] StudentDTO dto)
         {
             // chuyển đổi (Mapping) từ StudentDTO sang Student
             var newStudent = new Student
