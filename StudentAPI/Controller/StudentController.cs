@@ -1,83 +1,104 @@
 using Microsoft.AspNetCore.Mvc;
 using StudentAPI.Model;
 using StudentAPI.DTO;
+using StudentAPI.Service;
+using System.Collections.Generic;
 namespace StudentAPI.Controller
 {
     [ApiController]
-    [Route("api/[controller]")] // api/student
+    [Route("api/students")] // api/student
     public class StudentController : ControllerBase
     {
-        //khoi tao danh sach sinh vien
-        private static List<Student> students = new List<Student>
+        private IStudentService _studentService;
+        public StudentController(IStudentService studentService)
         {
-            new Student { Id = 1, Name = "Nguyen Van A", Age = 20, Address = "Ha Noi" },
-            new Student { Id = 2, Name = "Tran Thi B", Age = 21, Address = "Hai Phong" },
-            new Student { Id = 3, Name = "Le Van C", Age = 22, Address = "Da Nang" }
-        };
+            _studentService = studentService;
+        }
+        
 
         //1. Get: api/student (lay toan bo danh sach sinh vien)
         [HttpGet]
-        public IActionResult<IEnumerable<Student>> Get()
+        public ActionResult<IEnumerable<StudentResponseDTO>> GetAll([FromQuery] PaginationRequest paginationRequest)
         {
-            return Ok(students);
+            var response = _studentService.GetStudents(paginationRequest);
+            return Ok(new ApiResponse<PageResponse<StudentResponseDTO>>(response));
         }
+                
         //2. Get: api/student/1 (lay sinh vien theo id)
         [HttpGet("{id}")] // api/student/1
-        public IActionResult<Student> GetById(int id)
+        public ActionResult<StudentResponseDTO> GetById([FromRoute] int id)
         {
-            var student_ = students.FirstOrDefault(s => s.Id == id);
+            var student_ = _studentService.GetStudentById(id);
             if (student_ == null)
             {
-                return NotFound(new { message = "Student not found" });
+                return NotFound(new ApiResponse<string>("Student not found"));
             }
+            
             return Ok(student_);
         }
         //3 . Post: api/student (them moi sinh vien)
         [HttpPost]
-        public IActionResult<Student> Create([FromBody] StudentDTO dto)
+        public ActionResult<StudentResponseDTO> Add([FromBody] StudentDTO dto)
         {
-            // chuyển đổi (Mapping) từ StudentDTO sang Student
-            var newStudent = new Student
+            if(dto == null)
             {
-                Id = students.Count > 0 ? students.Max(s => s.Id) + 1 : 1, // Tự động tạo Id mới
-                Name = dto.Name,
-                Age = dto.Age,
-                Address = dto.Address,
-                ClassName = dto.ClassName
-            };
-            
-            students.Add(newStudent);
-            //tra ve ket qua them moi sinh vien thanh cong
-            return CreatedAtAction(nameof(GetById), new { id = newStudent.Id }, newStudent);
+                return BadRequest("Du lieu khoong hop le");
+            }
+            var createdStudent = _studentService.AddStudent(dto);
+
+    // Trả về 201 Created cùng đường dẫn GetById của sinh viên mới
+         return CreatedAtAction(nameof(GetById), new { id = createdStudent.Id }, createdStudent);
         }
         //4. Put: api/student/1 (cap nhat thong tin sinh vien theo id)
         [HttpPut("{id}")]
-        public IActionResult Update(int id, [FromBody] StudentDTO updatedStudentDTO)
+        public ActionResult Update([FromRoute] int id, [FromBody] StudentResponseDTO updatedStudentDTO)
         {
-            var student_ = students.FirstOrDefault(s => s.Id == id);
-            if (student_ == null)
+            if(updatedStudentDTO == null)
             {
-                return NotFound(new { message = "Student not found" });
+                return NotFound($"khong tim thay sinh vien co ID = {id} de cap nhat");
             }
-            //cap nhat thong tin sinh vien
-            student_.Name = updatedStudentDTO.Name;
-            student_.Age = updatedStudentDTO.Age;
-            student_.Address = updatedStudentDTO.Address;
-            student_.ClassName = updatedStudentDTO.ClassName;
-
-            return NoContent(); //trả về mã trạng thái 204 No Content để cho biết rằng yêu cầu đã được thực hiện thành công nhưng không có nội dung trả về.
+            var success = _studentService.UpdateStudent(id, updatedStudentDTO);
+            if(!success){
+                return NotFound(new ApiResponse<string>("Student not found"));
+            }
+            return Ok(new ApiResponse<string>("Student updated successfully"));
         }
         //5. Delete: api/student/1 (xoa sinh vien theo id)
         [HttpDelete("{id}")]
-        public IActionResult Delete(int id)
+        public ActionResult Delete(int id)
         {
-            var student_ = students.FirstOrDefault(s => s.Id == id);
-            if (student_ == null)
+            var student_ = _studentService.Remove(id);
+            if (!student_)
             {
-                return NotFound(new { message = "Student not found" });
+                return NotFound(new ApiResponse<string>("Student not found"));
             }
-            students.Remove(student_);
-            return NoContent();
+           
+            return Ok(new ApiResponse<string>("Student deleted successfully"));
+        }
+ 
+        [HttpGet("search")]
+        public ActionResult<IEnumerable<StudentResponseDTO>> Search(
+            [FromQuery] string? name, 
+            [FromQuery] int? age, 
+            [FromQuery] string? address, 
+            [FromQuery] string? className)
+        {
+            var results = _studentService.SearchStudents(name, age, address, className);
+            return Ok(new ApiResponse<List<StudentResponseDTO>>(results));
+        }
+
+        [HttpGet("search-pagination")]
+        public ActionResult<PageResponse<StudentResponseDTO>> SearchWithPagination(
+            [FromQuery] string? name, 
+            [FromQuery] int? age, 
+            [FromQuery] PaginationRequest paginationRequest)
+        {
+           
+            if (paginationRequest.PageNumber <= 0) paginationRequest.PageNumber = 1;
+            if (paginationRequest.PageSize <= 0) paginationRequest.PageSize = 10;
+
+            var results = _studentService.SearchStudentsWithPagination(name, age, paginationRequest);
+            return Ok(new ApiResponse<PageResponse<StudentResponseDTO>>(results));
         }
     }
 }
